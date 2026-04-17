@@ -1,0 +1,100 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f3f4f6;
+}
+
+/* FULL PAGE CENTER */
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+/* CARD */
+.login-card {
+  width: 350px;
+  background: #ffffff;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  text-align: center;
+}
+
+/* LOGO */
+.logo {
+  width: 80px;
+  margin-bottom: 10px;
+}
+
+/* TITLE */
+.login-card h2 {
+  margin: 10px 0;
+}
+
+/* SUBTITLE */
+.subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* FORM */
+form {
+  text-align: left;
+}
+
+label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0 15px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+input:focus {
+  border-color: #4a90e2;
+}
+
+/* BUTTON */
+button {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(to right, #3b82f6, #2563eb);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+button:hover {
+  transform: scale(1.03);
+}
+
+/* WARNING BOX */
+.warning-box {
+  margin-top: 20px;
+  background: #fff3cd;
+  color: #856404;
+  padding: 15px;
+  border-radius: 10px;
+  width: 350px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.warning-box span {
+  color: #0d6efd;
+  font-weight: bold;
+  cursor: pointer;
+}
