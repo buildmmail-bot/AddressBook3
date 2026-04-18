@@ -5,7 +5,7 @@ import json
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login
 from rest_framework import status
-from django.db.models import Q  # <--- Add this line
+from django.db.models import Q
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -26,13 +26,14 @@ def contact_list(request):
                 "name": c.name,
                 "company_name": c.company_name,
                 "address": c.address,
-                "phone": c.phone,  # Returns the list
-                "emails": c.emails, # Returns the list
+                "phones": c.phones,
+                "emails": c.emails,
                 "front_card": c.front_card.url if c.front_card else None,
                 "back_card": c.back_card.url if c.back_card else None,
                 "github": getattr(c, 'github', ""),
                 "linkedin": getattr(c, 'linkedin', ""),
                 "website": getattr(c, 'website', ""),
+                "qr_code": c.qr_code.url if c.qr_code else None,
             })
         return JsonResponse(data, safe=False)
 
@@ -41,18 +42,23 @@ def contact_list(request):
             name = request.POST.get("name")
             company_name = request.POST.get("company_name")
             address = request.POST.get("address", "")
-            
-            # Ensure phone are always saved as a list
-            phone_raw = request.POST.get("phone")
-            if phone_raw:
-                phone_val = json.loads(phone_raw)
+
+            phones_raw = request.POST.get("phones")
+            if phones_raw:
+                phones_val = json.loads(phones_raw)
             else:
                 p = request.POST.get("phone")
-                phone_val = [p] if p else []
+                phones_val = [p] if p else []
 
-            emails = json.loads(request.POST.get("emails", "[]"))
+            emails_raw = request.POST.get("emails", "[]")
+            try:
+                emails = json.loads(emails_raw)
+            except Exception:
+                emails = request.POST.getlist("emails[]")
+
             front_card = request.FILES.get("front_card")
             back_card = request.FILES.get("back_card")
+            qr_code = request.FILES.get("qr_code")
 
         else:
             data = json.loads(request.body)
@@ -60,24 +66,24 @@ def contact_list(request):
             company_name = data.get("company_name")
             address = data.get("address", "")
             emails = data.get("emails", [])
-            phone_val = data.get("phone", [])
-            if not phone_val and data.get("phone"):
-                phone_val = [data.get("phone")]
-            
+            phones_val = data.get("phones", [])
             front_card = None
             back_card = None
+            qr_code = None
 
         contact = Contact.objects.create(
             name=name,
             company_name=company_name,
             address=address,
-            phone=phone_val,
+            phones=phones_val,
             emails=emails,
             front_card=front_card,
             back_card=back_card,
+            qr_code=qr_code,
         )
 
         return JsonResponse({"message": "Saved", "id": contact.id})
+
 
 # ===================== CONTACT DETAIL =====================
 
@@ -93,27 +99,55 @@ def contact_detail(request, id):
         return JsonResponse({"message": "Deleted"})
 
     elif request.method == "PUT":
-        data = json.loads(request.body.decode('utf-8'))
+        try:
+            data = json.loads(request.body.decode('utf-8'))
 
-        contact.name = data.get("name", contact.name)
-        contact.emails = data.get("emails", contact.emails)
-        
-        # Fixed indentation here
-        if "phone" in data:
-            contact.phone = data.get("phone")
-        elif "phone" in data:
-            contact.phone = [data.get("phone")]
+            contact.name = data.get("name", contact.name)
+            contact.company_name = data.get("company_name", contact.company_name)
+            contact.address = data.get("address", contact.address)
+            contact.emails = data.get("emails", contact.emails)
+            contact.phones = data.get("phones", contact.phones)
 
-        contact.company_name = data.get("company_name", contact.company_name)
-        contact.address = data.get("address", contact.address)
-        contact.pin = data.get("pin", getattr(contact, 'pin', ""))
-        contact.github = data.get("github", getattr(contact, 'github', ""))
-        contact.linkedin = data.get("linkedin", getattr(contact, 'linkedin', ""))
-        contact.website = data.get("website", getattr(contact, 'website', ""))
+            contact.save()
 
-        contact.save()
-        return JsonResponse({"message": "Updated"})
+            return JsonResponse({
+                "id": contact.id,
+                "name": contact.name,
+                "company_name": contact.company_name,
+                "address": contact.address,
+                "phones": contact.phones,
+                "emails": contact.emails,
+                "front_card": contact.front_card.url if contact.front_card else None,
+                "back_card": contact.back_card.url if contact.back_card else None,
+            })
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
 
+
+# ===================== CLEAR CARD =====================
+
+@csrf_exempt
+def clear_card(request, id):
+    if request.method == "POST":
+        try:
+            contact = Contact.objects.get(id=id)
+            data = json.loads(request.body)
+            field = data.get("field")
+            if field == "front_card":
+                if contact.front_card:
+                    contact.front_card.delete(save=False)
+                contact.front_card = None
+            elif field == "back_card":
+                if contact.back_card:
+                    contact.back_card.delete(save=False)
+                contact.back_card = None
+            contact.save()
+            return JsonResponse({"message": "Card deleted"})
+        except Contact.DoesNotExist:
+            return JsonResponse({"error": "Not found"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Invalid method"}, status=405)
 
 
 # ===================== LOGIN =====================
@@ -135,14 +169,21 @@ def login_view(request):
         if user is not None:
             login(request, user)
 
+            user_email = user.email if user.email else user.username
+            Admin.objects.get_or_create(
+                email=user_email,
+                defaults={"name": user.username, "password": ""}
+            )
+
             return JsonResponse({
-                    "name": user.username,
+                "name": user.username,
                 "email": user.email
             })
         else:
             return JsonResponse({"error": "Invalid credentials"}, status=400)
 
     return JsonResponse({"message": "Login endpoint is active"})
+
 
 # ===================== REGISTER =====================
 
@@ -152,6 +193,7 @@ def register_admin(request):
         data = json.loads(request.body)
         email = data.get("email")
         password = data.get("password")
+        name = data.get("name", email)
 
         if not email or not password:
             return JsonResponse({"error": "Email and password required"}, status=400)
@@ -160,12 +202,15 @@ def register_admin(request):
             return JsonResponse({"error": "Admin already exists"}, status=400)
 
         User.objects.create_user(username=email, email=email, password=password)
+
+        Admin.objects.get_or_create(
+            email=email,
+            defaults={"name": name, "password": password}
+        )
+
         return JsonResponse({"message": "Admin added successfully"})
 
     return JsonResponse({"message": "Register endpoint active"})
-
-
-
 
 
 @api_view(['GET', 'POST'])
@@ -175,7 +220,6 @@ def admin_list(request):
         admins = Admin.objects.filter(
             Q(name__icontains=search) | Q(email__icontains=search)
         ).order_by('-id')
-        admins = admins.order_by('-id')
         serializer = AdminSerializer(admins, many=True)
         return Response({'count': admins.count(), 'results': serializer.data})
 
@@ -208,3 +252,23 @@ def admin_detail(request, pk):
     if request.method == 'DELETE':
         admin.delete()
         return Response({'message': 'Admin deleted'}, status=status.HTTP_204_NO_CONTENT)
+
+
+# ===================== PASSWORD RESET =====================
+
+@csrf_exempt
+def password_reset(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        email = data.get("email")
+        new_password = data.get("new_password")
+
+        try:
+            admin = Admin.objects.get(email=email)
+            admin.password = new_password
+            admin.save()
+            return JsonResponse({"message": "Password updated successfully"})
+        except Admin.DoesNotExist:
+            return JsonResponse({"error": "Admin with this email not found"}, status=404)
+
+    return JsonResponse({"error": "Invalid method"}, status=405)

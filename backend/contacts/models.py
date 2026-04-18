@@ -2,11 +2,12 @@ from django.db import models
 class Contact(models.Model):
     name = models.CharField(max_length=255, default="New Admin")
     emails = models.JSONField(default=list)
-    phone = models.JSONField(default=list)
+    phones = models.JSONField(default=list)
     company_name = models.CharField(max_length=100)
     address = models.TextField(blank=True, null=True)
     front_card = models.ImageField(upload_to="cards/front/", blank=True, null=True)
     back_card = models.ImageField(upload_to="cards/back/", blank=True, null=True)
+    qr_code = models.ImageField(upload_to='qr_codes/', null=True, blank=True)
 
 
 
